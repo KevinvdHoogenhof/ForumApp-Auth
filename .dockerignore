@@ -28,3 +28,10 @@ README.md
 !.git/config
 !.git/packed-refs
 !.git/refs/heads/**
+*.pyc
+venv/
+__pycache__
+.vscode
+*.pyc
+*.pyo
+*.pyd
