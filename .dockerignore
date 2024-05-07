@@ -28,3 +28,9 @@ README.md
 !.git/config
 !.git/packed-refs
 !.git/refs/heads/**
+__pycache__
+venv
+build
+dist
+lib
+scripts
