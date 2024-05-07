@@ -6,3 +6,4 @@ psycopg2-binary==2.9.9
 flasgger==0.5.4
 Flask-Migrate==4.0.7
 gunicorn==22.0.0
+confluent-kafka==2.3.0

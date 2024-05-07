@@ -1,14 +1,22 @@
 from flask import Flask, jsonify, render_template, request, redirect, url_for
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, decode_token, get_jwt_identity
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate, upgrade
+from datetime import timedelta
 import os
+from confluent_kafka import Producer
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'postgresql://postgres:mysecretpassword@localhost/authdb'
+app.config['JWT_SECRET_KEY'] = 'your_secret_key'  
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
+jwt = JWTManager(app)
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 migrate = Migrate(app,db)
+KAFKA_SERVER_URL = os.environ.get('KAFKA_SERVER_URL', 'localhost:9092')
+producer = Producer({'bootstrap.servers': KAFKA_SERVER_URL})
 
 # Define the User model
 class User(db.Model):
@@ -91,12 +99,66 @@ def login():
 
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
-            #access_token = create_access_token(identity={'id': user.id, 'name': user.name})
-            #return jsonify(access_token=access_token), 200
-            return jsonify({'message': 'Login successful', 'username': user.username})
+            access_token = create_access_token(identity={'id': user.id, 'username': user.username})
+            return jsonify(access_token=access_token), 200
+            #return jsonify({'message': 'Login successful', 'username': user.username})
 
         return jsonify({'message': 'Invalid email or password'}), 401
     return render_template('login.html')
+
+@app.route('/users', methods=['GET'])
+def users():
+    users = User.query.all()
+    user_list = []
+
+    for user in users:
+        user_data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'password_hash': user.password_hash
+        }
+        user_list.append(user_data)
+
+    return jsonify({'users': user_list}), 200
+
+@app.route('/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    db.session.delete(user)
+    db.session.commit()
+
+    # Produce a message to Kafka topic
+    topic = 'accountdeleted'
+    message = f'{user_id} has deleted their account'
+    producer.produce(topic, message.encode('utf-8'))
+    producer.flush()
+
+    return jsonify({'message': 'User deleted successfully'}), 200
+
+# Endpoint for token validation
+@app.route('/validate-token', methods=['POST'])
+def validate_token():
+    token = request.json.get('access_token', None)
+
+    if not token:
+        return jsonify({'message': 'Access token is missing'}), 400
+
+    try:
+        decoded_token = decode_token(token)
+        return jsonify({'valid': True, 'identity': decoded_token['sub']}), 200
+    except Exception as e:
+        return jsonify({'valid': False, 'error': str(e)}), 401
+
+@app.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    current_user = get_jwt_identity()
+    return jsonify(logged_in_as=current_user), 200
 
 @app.route('/hello/<username>')
 def hello(username):
