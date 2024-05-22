@@ -115,8 +115,8 @@ def users():
         user_data = {
             'id': user.id,
             'username': user.username,
-            'email': user.email,
-            'password_hash': user.password_hash
+            #'email': user.email,
+            #'password_hash': user.password_hash
         }
         user_list.append(user_data)
 
