@@ -31,3 +31,11 @@
 ### Run tests
 
 ```pytest```
+
+### Test coverage 
+
+```coverage run -m pytest```
+
+```coverage report```
+
+```coverage html```
