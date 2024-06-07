@@ -1,18 +1,22 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build-env
-WORKDIR /App
-EXPOSE 8080
-EXPOSE 8081
+# Use the official Python image as base
+FROM python:3.8-slim
 
-# Copy everything
-COPY . .
-# Restore as distinct layers
-RUN dotnet restore
-# Build and publish a release
-RUN dotnet publish -c Release -o out
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# Build runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
-WORKDIR /App
-COPY --from=build-env /App/out .
+# Set working directory in the container
+WORKDIR /app
 
-ENTRYPOINT ["dotnet", "AuthService.API.dll"]
+# Install dependencies
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . /app/
+
+# Expose the port your app runs on
+EXPOSE 5000
+
+# Run the Flask application with Gunicorn
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app:app"]
