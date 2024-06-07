@@ -27,3 +27,7 @@
 ### Start app locally
 
 ```python app.py```
+
+### Run tests
+
+```pytest```
