@@ -4,11 +4,17 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate, upgrade
 from datetime import timedelta
+import re
 import os
 from confluent_kafka import Producer
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'postgresql://postgres:mysecretpassword@localhost/authdb'
+
+# Check for the testing environment
+if os.environ.get('FLASK_ENV') == 'testing':
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'postgresql://postgres:mysecretpassword@localhost/authdb'
 app.config['JWT_SECRET_KEY'] = 'your_secret_key'  
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
 jwt = JWTManager(app)
@@ -37,6 +43,9 @@ def apply_migrations():
     from sqlalchemy import inspect
     from sqlalchemy.exc import ProgrammingError
 
+    if os.environ.get('FLASK_ENV') == 'testing':
+        return  # Skip migrations in testing environment
+    
     try:
         with app.app_context():
             inspector = inspect(db.engine)
@@ -56,6 +65,37 @@ apply_migrations()
 def index():
     return render_template('index.html')
 
+# Function to check if email is valid
+def is_valid_email(email):
+    """
+    Validates the email address format.
+    """
+    # Regular expression pattern for validating email address
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+# Password policy function
+def is_valid_password(password):
+    """
+    Validates the password based on defined policies:
+    - At least 8 characters long
+    - Contains at least one uppercase letter
+    - Contains at least one lowercase letter
+    - Contains at least one digit
+    - Contains at least one special character
+    """
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter."
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter."
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one digit."
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return False, "Password must contain at least one special character."
+    return True, "Password is valid."
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -72,6 +112,17 @@ def register():
             username = request.form.get('username')
             email = request.form.get('email')
             password = request.form.get('password')
+
+        if not username or not password or not email:
+            return jsonify({"error": "Username, password and email are required."}), 400
+
+        is_valid_pw, message = is_valid_password(password)
+        if not is_valid_pw:
+            return jsonify({"error": message}), 400
+
+        is_valid_email_address = is_valid_email(email)
+        if not is_valid_email_address:
+            return jsonify({"error": "Invalid email address format."}), 400
 
         if User.query.filter_by(email=email).first():
             return jsonify({'message': 'Email already exists'}), 400
