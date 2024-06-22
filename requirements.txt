@@ -7,5 +7,3 @@ flasgger==0.5.4
 Flask-Migrate==4.0.7
 gunicorn==22.0.0
 confluent-kafka==2.3.0
-pytest==8.2.2
-requests==2.32.3

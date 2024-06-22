@@ -22,6 +22,33 @@ def clear_db():
     db.session.query(User).delete()
     db.session.commit()
 
+@pytest.mark.parametrize("email, password, status_code, description", [
+    ("test@example.com", "password123", 200, "Valid login"),
+    ("invalid@example.com", "password123", 401, "Invalid email"),
+    ("test@example.com", "wrongpassword", 401, "Invalid password"),
+    ("", "password123", 401, "Missing email"),
+    ("test@example.com", "", 401, "Missing password")
+])
+def test_login(email, password, status_code, description, test_client):
+    # Create a test user if the test case is for valid login
+    if description == "Valid login":
+        user = User(username='test_user', email=email)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+    
+    # Attempt to log in
+    response = test_client.post('/login', json={
+        'email': email,
+        'password': password
+    })
+    
+    assert response.status_code == status_code, f"{description}: Expected {status_code}, got {response.status_code}"
+    if response.status_code == 200:
+        # Verify the token is in the response
+        data = response.get_json()
+        assert 'access_token' in data, "Access token is missing in the response"
+
 def test_protected_endpoint_unauthorized(test_client):
     response = test_client.get('/protected')
     assert response.status_code == 401

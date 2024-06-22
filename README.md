@@ -24,6 +24,8 @@
 
 ```pip install -r requirements.txt```
 
+```pip install -r requirements-dev.txt```
+
 ### Start app locally
 
 ```python app.py```
@@ -31,3 +33,11 @@
 ### Run tests
 
 ```pytest```
+
+### Test coverage 
+
+```coverage run -m pytest```
+
+```coverage report```
+
+```coverage html```
